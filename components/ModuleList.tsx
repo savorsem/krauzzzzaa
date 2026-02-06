@@ -1,0 +1,140 @@
+
+import React, { useState } from 'react';
+import { Module, UserProgress, Lesson } from '../types';
+import { telegram } from '../services/telegramService';
+
+interface ModuleListProps {
+  modules: Module[];
+  userProgress: UserProgress;
+  onSelectLesson: (lesson: Lesson) => void;
+  onBack: () => void;
+}
+
+export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, onSelectLesson }) => {
+  const [shakingId, setShakingId] = useState<string | null>(null);
+  const [lockedTooltipId, setLockedTooltipId] = useState<string | null>(null);
+
+  const handleModuleClick = (module: Module, isLocked: boolean) => {
+    if (isLocked) {
+        setShakingId(module.id);
+        setLockedTooltipId(module.id);
+        telegram.haptic('error');
+        
+        // Clear shaker
+        setTimeout(() => setShakingId(null), 400);
+        // Clear tooltip
+        setTimeout(() => setLockedTooltipId(null), 2000);
+        return;
+    }
+    
+    telegram.haptic('medium');
+    const nextLesson = module.lessons.find(l => !userProgress.completedLessonIds.includes(l.id)) || module.lessons[0];
+    if (nextLesson) onSelectLesson(nextLesson);
+  };
+
+  return (
+    <div className="space-y-4 md:space-y-6 pb-4">
+        {modules.map((module, index) => {
+            const isLocked = userProgress.level < module.minLevel;
+            const completedCount = module.lessons.filter(l => userProgress.completedLessonIds.includes(l.id)).length;
+            const totalCount = module.lessons.length;
+            const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+            
+            // Dynamic Gradients based on Category
+            const gradient = module.category === 'SALES' ? 'from-emerald-600/90 to-emerald-900/90' :
+                             module.category === 'PSYCHOLOGY' ? 'from-purple-600/90 to-purple-900/90' :
+                             module.category === 'TACTICS' ? 'from-red-600/90 to-red-900/90' :
+                             'from-slate-700/90 to-slate-900/90';
+
+            return (
+                <div 
+                    key={module.id}
+                    onClick={() => handleModuleClick(module, isLocked)}
+                    className={`
+                        relative w-full rounded-[2rem] md:rounded-[2.5rem] p-1 overflow-hidden transition-all duration-300 group select-none
+                        ${shakingId === module.id ? 'animate-shake ring-2 ring-red-500/50' : ''}
+                        ${isLocked 
+                            ? 'cursor-pointer' 
+                            : 'hover:scale-[1.01] active:scale-[0.98] cursor-pointer shadow-lg hover:shadow-xl shadow-[#6C5DD3]/10'}
+                    `}
+                >
+                    {/* Glassy Border Container */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-[2rem] md:rounded-[2.5rem] pointer-events-none z-20"></div>
+                    
+                    {/* Locked Overlay / Tooltip */}
+                    {isLocked && (
+                        <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all duration-300 ${lockedTooltipId === module.id ? 'bg-black/80 backdrop-blur-sm' : 'bg-black/40 group-hover:bg-black/50'}`}>
+                            {lockedTooltipId === module.id ? (
+                                <div className="bg-red-600 text-white px-4 py-3 rounded-xl shadow-2xl animate-scale-in border border-red-400">
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className="text-xl">⛔</span>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-center">Доступ закрыт</p>
+                                        <p className="text-[9px] font-bold opacity-90">Нужен {module.minLevel} уровень</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center transition-transform duration-300 group-hover:scale-110 opacity-70 group-hover:opacity-100">
+                                    <div className="w-12 h-12 rounded-full bg-black/60 border border-white/10 flex items-center justify-center backdrop-blur-md mb-2">
+                                        <span className="text-2xl">🔒</span>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/50 group-hover:text-white/80 transition-colors">
+                                        Lvl {module.minLevel}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Main Card Content */}
+                    <div className={`
+                        relative min-h-[12rem] h-auto rounded-[1.8rem] md:rounded-[2.3rem] overflow-hidden flex flex-col justify-end p-5 md:p-6 transition-all duration-500
+                        ${isLocked ? 'bg-[#0a0b0d] brightness-[0.4] grayscale group-hover:grayscale-[0.5] group-hover:brightness-[0.5]' : 'bg-[#14161B]'}
+                    `}>
+                        
+                        {/* Background Image/Gradient */}
+                        <div className={`absolute inset-0 bg-gradient-to-t ${gradient} z-0`}></div>
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 z-0 mix-blend-overlay"></div>
+                        
+                        {/* Status Badge */}
+                        <div className="absolute top-4 right-4 md:top-5 md:right-5 z-10 transition-transform duration-300 group-hover:scale-110">
+                            {!isLocked && (
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 text-white font-black text-[10px] md:text-xs">
+                                    {progressPercent}%
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Text Content */}
+                        <div className="relative z-10 flex flex-col gap-1 transform transition-transform duration-300 group-hover:translate-y-[-2px]">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="px-2 py-0.5 rounded-md bg-black/30 backdrop-blur-md text-[8px] font-black uppercase tracking-widest text-white/80 border border-white/10">
+                                    Модуль {index + 1}
+                                </span>
+                            </div>
+                            
+                            <h3 className="text-xl md:text-2xl font-black text-white leading-tight drop-shadow-lg max-w-[85%] break-words">
+                                {module.title}
+                            </h3>
+                            
+                            {/* Progress Line */}
+                            {!isLocked && (
+                                <div className="w-full h-1.5 bg-black/30 rounded-full overflow-hidden mt-3 backdrop-blur-sm">
+                                    <div 
+                                        className="h-full bg-white shadow-[0_0_10px_white] transition-all duration-1000 ease-out" 
+                                        style={{ width: `${progressPercent}%` }}
+                                    ></div>
+                                </div>
+                            )}
+                            
+                            <div className="mt-3 flex items-center justify-between text-white/60 text-[10px] font-bold uppercase tracking-wider">
+                                <span>{module.lessons.length} Уроков</span>
+                                <span>{completedCount} Пройдено</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        })}
+    </div>
+  );
+};
